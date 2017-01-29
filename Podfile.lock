@@ -1,0 +1,21 @@
+PODS:
+  - Charts (3.0.1):
+    - Charts/Core (= 3.0.1)
+  - Charts/Core (3.0.1)
+  - RxCocoa (3.1.0):
+    - RxSwift (~> 3.1)
+  - RxSwift (3.1.0)
+
+DEPENDENCIES:
+  - Charts
+  - RxCocoa (~> 3.0)
+  - RxSwift (~> 3.0)
+
+SPEC CHECKSUMS:
+  Charts: 0e84f4418e87dad6a9edde221fba37ebb51d3ba7
+  RxCocoa: 50d7564866da9299161e86a263ce12a0873904d8
+  RxSwift: 83ff553e7593fdfdcb2562933a64c0284dffdadc
+
+PODFILE CHECKSUM: e788b876ce1dae8f5a8755e0f6fa97285c2b8f39
+
+COCOAPODS: 1.1.1
