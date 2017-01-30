@@ -29,22 +29,35 @@ extension ViewController {
         }
         av /= Double(array.count)
         averageLimitLine.limit = av
-        averageLimitLine.label = String.init(format: "В среднем %0.1f °C", av)
+        averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
         
         if let currentTemp = array.last {
             degreesLimitLine.limit = currentTemp
-            degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
-            degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-        }
-       
+//            degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
+
+			if fabs(currentTemp - av) < 30 {
+				degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+				averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+			}
+			else {
+				degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+				averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+			}
+		}
+		
         array[0] = av > 0 ? 0.9 : -0.9
-        
+		
         self.setChart(dataPoints: array, values: plotXData)
     }
 }
 
 class ViewController: UIViewController {
 
+	@IBOutlet weak var degreesLabel: UILabel!
+	@IBOutlet weak var avDegreesLabel: UILabel!
+	
+	@IBOutlet weak var linksTextView: UITextView!
+	
 	@IBOutlet weak var updateButton: UIButton!
 	
 	@IBOutlet weak var plotView: LineChartView!
@@ -60,12 +73,14 @@ class ViewController: UIViewController {
 		
 		addBindings()
 		setupPlot()
+		setupLinks()
+		
+		viewModel.update()
         viewModel.loadPlotData()
-
-	
 	}
 	
 	@IBAction func onUpdateButtonTap(_ sender: Any) {
+		viewModel.update()
 		viewModel.loadPlotData()
 	}
 	
@@ -73,6 +88,55 @@ class ViewController: UIViewController {
 		viewModel.plotData
             .bindTo(rx.plotData)
 			.addDisposableTo(disposeBag)
+		
+		viewModel.plotData
+			.map({ String.init(format: "Средняя температура за 3 дня %0.2f °C", self.average(values: $0!)) })
+			.bindTo(avDegreesLabel.rx.text)
+			.addDisposableTo(disposeBag)
+		
+		viewModel.degrees
+			.map({ "Температура около НГУ \($0!)" })
+			.bindTo(degreesLabel.rx.text)
+			.addDisposableTo(disposeBag)
+		
+		viewModel.degrees
+			.bindNext { (degreesString) in
+				self.degreesLimitLine.label = degreesString!
+			}
+			.addDisposableTo(disposeBag)
+	}
+	
+	func setupLinks() {
+		
+		let phrases = ["Прогноз Яндекс", "\nПрогноз Gismeteo", "\n\nДанные предоставленны сайтом ", "weather.nsu.ru"]
+		let links = ["https://yandex.ru/pogoda/novosibirsk", "https://www.gismeteo.ru/weather-novosibirsk-4690/", "", "http://weather.nsu.ru/"]
+		
+		let attrString = NSMutableAttributedString()
+		
+		for i in 0 ... 3 {
+			
+			let phrase = phrases[i]
+			let link = links[i]
+			
+			let paragraphStyle = NSMutableParagraphStyle()
+			paragraphStyle.alignment = .center
+			
+			if link == "" {
+				let linkAttributes = [
+					NSParagraphStyleAttributeName: paragraphStyle] as [String : Any]
+				let attrPhrase = NSAttributedString.init(string: phrase, attributes: linkAttributes)
+				attrString.append(attrPhrase)
+			}
+			else {
+				let linkAttributes = [
+					NSLinkAttributeName: NSURL(string: links[i])!,
+					NSForegroundColorAttributeName: UIColor.blue,
+					NSParagraphStyleAttributeName: paragraphStyle] as [String : Any]
+				let attrPhrase = NSAttributedString.init(string: phrase, attributes: linkAttributes)
+				attrString.append(attrPhrase)
+			}
+		}
+		self.linksTextView.attributedText = attrString
 	}
 	
 	func setupPlot() {
@@ -115,14 +179,14 @@ class ViewController: UIViewController {
         degreesLimitLine.labelPosition = .rightTop
         degreesLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Bold", size: 14.0)!
         degreesLimitLine.lineColor = .black
-        degreesLimitLine.lineWidth = 0.5
+        degreesLimitLine.lineWidth = 0.75
         yAxis.addLimitLine(degreesLimitLine)
         
         averageLimitLine = ChartLimitLine.init(limit: 0, label: "Среднее")
         averageLimitLine.labelPosition = .rightTop
         averageLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 14.0)!
         averageLimitLine.lineColor = .black
-        averageLimitLine.lineWidth = 0.5
+        averageLimitLine.lineWidth = 0.75
         yAxis.addLimitLine(averageLimitLine)
 
 		plotView.rightAxis.enabled = false
@@ -214,7 +278,7 @@ class ViewController: UIViewController {
 		chartData.setDrawValues(false)
 		plotView.data = chartData
         
-        plotView.animate(xAxisDuration: 10.0, yAxisDuration: 10.0)
+        plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
 	}
     
     func average(values: Array<Double>) -> Double {

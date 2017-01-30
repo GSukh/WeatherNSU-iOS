@@ -32,13 +32,13 @@ class ViewModel {
 		didSet {
 			if let degrees = weather?.degrees {
 				DispatchQueue.main.async {
-					let degreesString = String(format: "%0.2f°C", degrees)
+					let degreesString = String(format: "%0.2f °C", degrees)
 					self.degrees.onNext(degreesString)
 				}
 			}
 			if let averageDegrees = weather?.averageDegrees {
 				DispatchQueue.main.async {
-					let averageDegreesString = String(format: "%0.2f°C", averageDegrees)
+					let averageDegreesString = String(format: "%0.2f °C", averageDegrees)
 					self.averageDegrees.onNext(averageDegreesString)
 				}
 			}
@@ -56,7 +56,6 @@ class ViewModel {
 		
 		let session = URLSession(configuration: URLSessionConfiguration.default)
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in
-			print("\( response )")
 			if data != nil {
 				self.weather = Weather(response: data!)
 			}
@@ -70,7 +69,6 @@ class ViewModel {
 		
 		let session = URLSession(configuration: URLSessionConfiguration.default)
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in
-			print("\( response )")
 			if data != nil {
 				self.weatherPlot = WeatherPlot(response: data!)
 			}

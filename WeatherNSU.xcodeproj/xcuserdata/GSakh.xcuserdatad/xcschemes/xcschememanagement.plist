@@ -4,6 +4,11 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
+		<key>Weather NSU.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
 		<key>WeatherNSU.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
@@ -12,6 +17,11 @@
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>069D12331E3F5AED00365671</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>31E9DF3F1E3CD07200BE5A92</key>
 		<dict>
 			<key>primary</key>

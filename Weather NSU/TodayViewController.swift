@@ -94,8 +94,8 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         plotView.backgroundColor = .clear
         
         
-        plotView.dragEnabled = true
-        plotView.setScaleEnabled(true)
+		plotView.dragEnabled = false
+		plotView.setScaleEnabled(false)
         
         
         plotView.pinchZoomEnabled = false
