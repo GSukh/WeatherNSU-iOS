@@ -16,3 +16,10 @@ target 'WeatherNSU' do
 	corePods
 
 end
+
+target 'Weather NSU' do
+    
+    use_frameworks!
+    corePods
+    
+end

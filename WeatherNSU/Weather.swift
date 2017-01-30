@@ -31,5 +31,5 @@ class Weather {
 		
 		return result
 	}
-	
+
 }

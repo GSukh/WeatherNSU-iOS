@@ -1,18 +1,19 @@
 import UIKit
+import NotificationCenter
+
 import RxSwift
 import RxCocoa
-
 import Charts
 
-extension Reactive where Base: ViewController {
+extension Reactive where Base: TodayViewController {
     var plotData: AnyObserver<[Double]?> {
         return UIBindingObserver(UIElement: base) { vc, data in
             vc.updateData(data)
-        }.asObserver()
+            }.asObserver()
     }
 }
 
-extension ViewController {
+extension TodayViewController {
     func updateData(_ data: [Double]?) {
         var array: [Double] = (data)!
         var plotXData = Array<Double>();
@@ -34,105 +35,116 @@ extension ViewController {
         if let currentTemp = array.last {
             degreesLimitLine.limit = currentTemp
             degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
-            degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+            
+            if fabs(currentTemp - av) < 30 {
+                degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+				averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+            }
+            else {
+                degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+                averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+            }
         }
-       
-        array[0] = av > 0 ? 0.9 : -0.9
         
         self.setChart(dataPoints: array, values: plotXData)
     }
 }
 
-class ViewController: UIViewController {
-
-	@IBOutlet weak var updateButton: UIButton!
-	
-	@IBOutlet weak var plotView: LineChartView!
+class TodayViewController: UIViewController, NCWidgetProviding {
+        
+    @IBOutlet weak var plotView: LineChartView!
     var degreesLimitLine: ChartLimitLine!
     var averageLimitLine: ChartLimitLine!
-	
-	let disposeBag = DisposeBag()
-	let viewModel = ViewModel()
+    
+    let disposeBag = DisposeBag()
+    let viewModel = ViewModel()
 
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
 
-	override func viewDidLoad() {
-		super.viewDidLoad()
-		
-		addBindings()
-		setupPlot()
+        addBindings()
+        setupPlot()
         viewModel.loadPlotData()
-
-	
-	}
-	
-	@IBAction func onUpdateButtonTap(_ sender: Any) {
-		viewModel.loadPlotData()
-	}
-	
-	func addBindings() {
-		viewModel.plotData
+    }
+    
+    func addBindings() {
+        viewModel.plotData
             .bindTo(rx.plotData)
-			.addDisposableTo(disposeBag)
-	}
-	
-	func setupPlot() {
-		plotView.setViewPortOffsets(left: 0.0, top: 0.0, right: 0.0, bottom: 0.0)
-		
-		
-		plotView.chartDescription?.enabled = false
-		
-		
-		plotView.dragEnabled = true
-		plotView.setScaleEnabled(true)
-		
-		
-		plotView.pinchZoomEnabled = false
-		
-		
-		plotView.drawGridBackgroundEnabled = false
-		plotView.maxHighlightDistance = 300.0
-		
-		plotView.xAxis.enabled = true
+            .addDisposableTo(disposeBag)
+    }
+    
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+
+    }
+    
+    func widgetPerformUpdate(completionHandler: (@escaping (NCUpdateResult) -> Void)) {
+
+        viewModel.loadPlotData()
+        completionHandler(NCUpdateResult.newData)
+    }
+    
+    
+    func setupPlot() {
+        plotView.setViewPortOffsets(left: 0.0, top: 0.0, right: 0.0, bottom: 0.0)
+        
+        
+        plotView.chartDescription?.enabled = false
+        plotView.backgroundColor = .clear
+        
+        
+        plotView.dragEnabled = true
+        plotView.setScaleEnabled(true)
+        
+        
+        plotView.pinchZoomEnabled = false
+        
+        
+        plotView.drawGridBackgroundEnabled = false
+        plotView.maxHighlightDistance = 300.0
+        
+        plotView.xAxis.enabled = true
         let xAxis = plotView.xAxis
         xAxis.labelPosition = .top
         xAxis.drawGridLinesEnabled = false
         
         addXLimitLines()
         
-		
-		let yAxis: YAxis = plotView.leftAxis
-		yAxis.labelFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
-		yAxis.setLabelCount(12, force: false)
-		yAxis.labelTextColor = .black
-		yAxis.labelPosition = .insideChart
-		yAxis.drawGridLinesEnabled = true
+        
+        let yAxis: YAxis = plotView.leftAxis
+        yAxis.labelFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
+        yAxis.setLabelCount(6, force: false)
+        yAxis.labelTextColor = .black
+        yAxis.labelPosition = .insideChart
+        yAxis.drawGridLinesEnabled = true
         
         yAxis.gridLineDashPhase = CGFloat(1)
         yAxis.gridLineDashLengths = [1, 27, 1000]
-		yAxis.axisLineColor = .black
+        yAxis.axisLineColor = .black
         
         degreesLimitLine = ChartLimitLine.init(limit: 0, label: "")
         degreesLimitLine.labelPosition = .rightTop
-        degreesLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Bold", size: 14.0)!
+        degreesLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Bold", size: 12.0)!
         degreesLimitLine.lineColor = .black
         degreesLimitLine.lineWidth = 0.5
         yAxis.addLimitLine(degreesLimitLine)
         
         averageLimitLine = ChartLimitLine.init(limit: 0, label: "Среднее")
         averageLimitLine.labelPosition = .rightTop
-        averageLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 14.0)!
+        averageLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
         averageLimitLine.lineColor = .black
         averageLimitLine.lineWidth = 0.5
         yAxis.addLimitLine(averageLimitLine)
-
-		plotView.rightAxis.enabled = false
-		plotView.legend.enabled = false
-		
-		plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
-	}
+        
+        plotView.rightAxis.enabled = false
+        plotView.legend.enabled = false
+        
+        plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
+    }
     
     func addXLimitLines() {
-		let xAxis = plotView.xAxis
+        let xAxis = plotView.xAxis
         xAxis.removeAllLimitLines()
         
         let now = Date()
@@ -167,7 +179,7 @@ class ViewController: UIViewController {
         let step = 60 * 60 * 6
         for i in 1 ... 12 {
             let interval = startInterval + i * step
-
+            
             let limitLine = ChartLimitLine.init(limit: Double(interval), label: "")
             limitLine.lineColor = .darkGray
             limitLine.lineWidth = 0.25
@@ -175,47 +187,47 @@ class ViewController: UIViewController {
             xAxis.addLimitLine(limitLine)
         }
     }
-	
-	func setChart(dataPoints: [Double], values: [Double]) {
-		plotView.noDataText = "You need to provide data for the chart."
+    
+    func setChart(dataPoints: [Double], values: [Double]) {
+        plotView.noDataText = "You need to provide data for the chart."
         
         let coldColor: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 0.8)
-        let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)
+        let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)//UIColor(red: 105/255.0, green: 241/255.0, blue: 175/255.0, alpha: 1.0)
         let averageValue = average(values: dataPoints)
-		
-		var dataEntries: [ChartDataEntry] = []
-		
-		for i in 0..<dataPoints.count {
-			let dataEntry = ChartDataEntry(x: values[i], y: dataPoints[i])
-			dataEntries.append(dataEntry)
-		}
-		
-		let dataSet = LineChartDataSet(values: dataEntries, label: "Temp")
-		dataSet.mode = .cubicBezier
-		dataSet.cubicIntensity = 0.2
-		dataSet.drawCirclesEnabled = false
-		dataSet.lineWidth = 1.8
-		dataSet.circleRadius = 4.0
-		dataSet.setCircleColor(.white)
-		
-		dataSet.highlightColor = .clear
-		dataSet.setColor(.clear)
+        
+        var dataEntries: [ChartDataEntry] = []
+        
+        for i in 0..<dataPoints.count {
+            let dataEntry = ChartDataEntry(x: values[i], y: dataPoints[i]) //(value: values[i], xIndex: i)
+            dataEntries.append(dataEntry)
+        }
+        
+        let dataSet = LineChartDataSet(values: dataEntries, label: "Temp")
+        dataSet.mode = .cubicBezier
+        dataSet.cubicIntensity = 0.2
+        dataSet.drawCirclesEnabled = false
+        dataSet.lineWidth = 1.8
+        dataSet.circleRadius = 4.0
+        dataSet.setCircleColor(.white)
+        
+        dataSet.highlightColor = .clear//UIColor(red: 244/255.0, green: 117/255.0, blue: 117/255.0, alpha: 1.0)
+        dataSet.setColor(.clear)//(averageValue > 0 ? hotColor : coldColor)
         
         dataSet.fillColor = averageValue > 0 ? hotColor : coldColor
-		dataSet.fillAlpha = 1.0
-		
-		dataSet.drawHorizontalHighlightIndicatorEnabled = false
-		dataSet.fillFormatter = ToZeroFillFormatter()
-		
-		dataSet.drawFilledEnabled = true
-
-		let chartData = LineChartData.init(dataSets: [dataSet])
-		chartData.setValueFont(UIFont.init(name: "HelveticaNeue-Light", size: 9.0))
-		chartData.setDrawValues(false)
-		plotView.data = chartData
+        dataSet.fillAlpha = 1.0
         
-        plotView.animate(xAxisDuration: 10.0, yAxisDuration: 10.0)
-	}
+        dataSet.drawHorizontalHighlightIndicatorEnabled = false
+        dataSet.fillFormatter = ToZeroFillFormatter()
+        
+        dataSet.drawFilledEnabled = true
+        
+        let chartData = LineChartData.init(dataSets: [dataSet])
+        chartData.setValueFont(UIFont.init(name: "HelveticaNeue-Light", size: 9.0))
+        chartData.setDrawValues(false)
+        plotView.data = chartData
+        
+        plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
+    }
     
     func average(values: Array<Double>) -> Double {
         guard values.count != 0 else {
@@ -227,5 +239,6 @@ class ViewController: UIViewController {
         }
         return (av / Double(values.count) )
     }
-}
 
+    
+}

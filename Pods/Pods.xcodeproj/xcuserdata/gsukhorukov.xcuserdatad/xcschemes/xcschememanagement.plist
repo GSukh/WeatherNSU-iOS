@@ -9,6 +9,11 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
+		<key>Pods-Weather NSU.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
 		<key>Pods-WeatherNSU.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -27,7 +32,17 @@
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
-		<key>BAC852F5CEE93FF39AA276219A88F099</key>
+		<key>51EA1CBCCF5261BDC86EBB051D0DA831</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>5C80E0A1815DB2CC8C62E3025F06EF6C</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>937E151C74027047B8C6DB88BE954D34</key>
 		<dict>
 			<key>primary</key>
 			<true/>
@@ -38,11 +53,6 @@
 			<true/>
 		</dict>
 		<key>F307B842FF76B2DE6C55DB67C0885325</key>
-		<dict>
-			<key>primary</key>
-			<true/>
-		</dict>
-		<key>FCA6162BC879548C62A5847D9B84E07D</key>
 		<dict>
 			<key>primary</key>
 			<true/>

@@ -72,11 +72,7 @@ class ViewModel {
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in
 			print("\( response )")
 			if data != nil {
-				let weatherPlotData = WeatherPlot(response: data!)
-				if let currentWeather = self.weather {
-					weatherPlotData.normDataWith(currentDegrees: currentWeather.degrees!, avDegrees: currentWeather.averageDegrees!)
-				}
-				self.weatherPlot = weatherPlotData
+				self.weatherPlot = WeatherPlot(response: data!)
 			}
 		}
 		

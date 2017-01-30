@@ -8,7 +8,6 @@ class WeatherPlot {
 	var yData: Array<Double>? = Array()
 	
 	init(response: Data) {
-		
 		let responseString: String = String.init(data: response, encoding: .utf8)!
 		
 		let xString: String = responseString.components(separatedBy: "document.Xpoints = [ ").last!
@@ -22,31 +21,45 @@ class WeatherPlot {
 		for string in yString.components(separatedBy: ",") {
 			yData?.append(Double(string)!)
 		}
-		
+        
+        let normData = findNormTemp(responseString)
+		normDataWith(normData: normData)
 	}
+    
+    func findNormTemp(_ string: String) -> Dictionary<Double, Double> {
+        var result = Dictionary<Double, Double>()
+        let temps: [Int] = Array(-30...30)
+        for temp in temps {
+            let findString = "'<b>\(temp) &deg;C</b>',"
+            let numString = string.components(separatedBy: findString).last!
+                .components(separatedBy: CharacterSet(charactersIn: ",) "))[3]
+            
+            if let num = Double(numString) {
+                if num != 0 {
+                    result[Double(temp)] = num
+                }
+            }
+        }
+        return result
+    }
 	
-	public func normDataWith(currentDegrees: Double, avDegrees: Double) {
-		
+    func normDataWith(normData: Dictionary<Double, Double>) {
 		guard yData != nil else {
 			return
 		}
 		
-		let max: Double = (yData?.max())!
-		var av: Double = 0.0
+        let t0 = normData.keys.min()!
+        let c0 = normData[t0]!
+        
+        let t1 = normData.keys.max()!
+        let c1 = normData[t1]!
 		
-		for i in 0 ..< (yData?.count)! {
-			yData?[i] = max - (yData?[i])!
-			av += (yData?[i])!
-		}
-		av /= Double((yData?.count)!)
-		
-		let A: Double = (avDegrees - currentDegrees) / (av - (yData?.last!)!)
-		let B: Double = currentDegrees - A * (yData?.last!)!
+		let A: Double = (t0 - t1) / (c0 - c1)
+		let B: Double = t1 - A * c1
 		
 		for i in 0 ..< (yData?.count)! {
 			yData?[i] = A * (yData?[i])! + B
 		}
-		
 	}
-
+    
 }

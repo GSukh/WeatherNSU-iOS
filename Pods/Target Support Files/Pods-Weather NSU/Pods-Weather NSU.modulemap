@@ -1,0 +1,6 @@
+framework module Pods_Weather_NSU {
+  umbrella header "Pods-Weather NSU-umbrella.h"
+
+  export *
+  module * { export * }
+}
