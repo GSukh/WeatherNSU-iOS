@@ -2,79 +2,109 @@ import Foundation
 import RxSwift
 import RxCocoa
 
-class ViewModel {
+class ViewModel: NSObject {
 	
 	private struct Constants {
 		static let URLShortWeather = "http://weather.nsu.ru/weather_brief.xml"
-		static let URLWeatherPlot = "http://weather.nsu.ru/loadata.php"
+		static let URLWeatherPlot = "http://weather.nsu.ru/weather.xml"
 	}
 	
 	let disposeBag = DisposeBag()
-
-	var degrees = PublishSubject<String?>()
-	var averageDegrees = PublishSubject<String?>()
-	var lastUpdate = PublishSubject<String?>()
-	var updating = PublishSubject<Bool?>()
 	
-	var plotData = PublishSubject<[Double]?>()
-	
-	var weatherPlot: WeatherPlot? {
-		didSet {
-			if let data = weatherPlot?.yData {
-				DispatchQueue.main.async {
-					self.plotData.onNext(data)
-				}
-			}
-		}
-	}
-
-	var weather: Weather? {
-		didSet {
-			if let degrees = weather?.degrees {
-				DispatchQueue.main.async {
-					let degreesString = String(format: "%0.2f °C", degrees)
-					self.degrees.onNext(degreesString)
-				}
-			}
-			if let averageDegrees = weather?.averageDegrees {
-				DispatchQueue.main.async {
-					let averageDegreesString = String(format: "%0.2f °C", averageDegrees)
-					self.averageDegrees.onNext(averageDegreesString)
-				}
-			}
-			if let date = weather?.date {
-				DispatchQueue.main.async {
-					let averageDegreesString = date.description(with: nil)
-					self.lastUpdate.onNext(averageDegreesString)
-				}
-			}
-		}
-	}
+	fileprivate var publishWeather = PublishSubject<Weather>()
+    var observableWeather: Observable<Weather> {
+        return publishWeather.asObserver().observeOn(MainScheduler.instance)
+    }
+    
+    fileprivate var _weather = Weather()
+    fileprivate var _tempPoint = TempPoint()
+    fileprivate var _foundCharacters: String = ""
 	
 	func update() {
-		let url = URL(string: Constants.URLShortWeather)
-		
-		let session = URLSession(configuration: URLSessionConfiguration.default)
-		let dataTask = session.dataTask(with: url!) { (data, response, error) in
-			if data != nil {
-				self.weather = Weather(response: data!)
-			}
-		}
-		
-		dataTask.resume()
-	}
-	
-	func loadPlotData() {
 		let url = URL(string: Constants.URLWeatherPlot)
 		
 		let session = URLSession(configuration: URLSessionConfiguration.default)
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in
 			if data != nil {
-				self.weatherPlot = WeatherPlot(response: data!)
+                self.parseWeather(data!)
 			}
 		}
 		
 		dataTask.resume()
 	}
 	
+    fileprivate func parseWeather(_ data: Data) {
+        let parser = XMLParser(data: data)
+        
+        parser.delegate = self
+        parser.parse()
+    }
+}
+
+extension ViewModel: XMLParserDelegate {
+    
+    public func parserDidStartDocument(_ parser: XMLParser) {
+        _weather = Weather()
+    }
+
+    
+    public func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+        if elementName == "temp" {
+            _tempPoint = TempPoint()
+            
+            if let timestampString = attributeDict["timestamp"],
+                let timestampFloat = Double.init(timestampString) {
+                _tempPoint.timestamp = Int(timestampFloat)
+            }
+        }
+        
+        if elementName == "weather" {
+            if let startTimestampString = attributeDict["start_timestamp"],
+                let startTimestampFloat = Double.init(startTimestampString) {
+                _weather.startTimestamp = Int(startTimestampFloat)
+            }
+            
+            if let endTimestampString = attributeDict["stop_timestamp"],
+                let endTimestampFloat = Double.init(endTimestampString) {
+                _weather.endTimestamp = Int(endTimestampFloat)
+            }
+        }
+        _foundCharacters = ""
+    }
+    
+    public func parser(_ parser: XMLParser, foundCharacters string: String) {
+        _foundCharacters += string
+    }
+    
+    public func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "temp" {
+            if let temp = Double(_foundCharacters) {
+                _tempPoint.temp = temp
+                _weather.graph.append(_tempPoint)
+            }
+        }
+        
+        if elementName == "average" {
+            if let temp = Double(_foundCharacters) {
+                _weather.average = temp
+            }
+        }
+        
+        if elementName == "current" {
+            if let temp = Double(_foundCharacters) {
+                _weather.current = temp
+            }
+        }
+
+        _foundCharacters = ""
+    }
+    
+    public func parserDidEndDocument(_ parser: XMLParser) {
+//        print("\(_weather.average)\n\(_weather.current)");
+//        for temp in self._weather.graph {
+//            print("\(temp.timestamp):    \(temp.temp)");
+//        }
+        self.publishWeather.onNext(_weather)
+    }
+
 }

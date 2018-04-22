@@ -5,48 +5,49 @@ import RxSwift
 import RxCocoa
 import Charts
 
-extension Reactive where Base: TodayViewController {
-    var plotData: AnyObserver<[Double]?> {
-        return UIBindingObserver(UIElement: base) { vc, data in
-            vc.updateData(data)
-            }.asObserver()
-    }
-}
-
 extension TodayViewController {
-    func updateData(_ data: [Double]?) {
-        var array: [Double] = (data)!
-        var plotXData = Array<Double>();
+    func updateData(_ data: [TempPoint]?) {
+        guard let data = data else { return }
         
-        var av = 0.0
+        let temps = data.map({ $0.temp })
+        let times = data.map({ Double($0.timestamp) })
         
-        let now: Int = Int(NSDate().timeIntervalSince1970)
-        let oneDay: Int = 60 * 60 * 24
-        let step: Int = Int( Double(3 * oneDay) / Double(array.count) )
+        let av = temps.average
         
-        for i in 0 ..< (array.count) {
-            plotXData.append(Double(now - 3 * oneDay + step * i))
-            av += array[i]
-        }
-        av /= Double(array.count)
         averageLimitLine.limit = av
-        averageLimitLine.label = String.init(format: "В среднем %0.1f °C", av)
+        averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
         
-        if let currentTemp = array.last {
+        
+        if let currentTemp = temps.last {
             degreesLimitLine.limit = currentTemp
-            degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
+            degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
             
-            if fabs(currentTemp - av) < 30 {
-                degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
-				averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-            }
-            else {
-                degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-                averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+            let higher = temps.max()!
+            let lower = temps.min()!
+            let gap = higher - lower
+            
+            let currentOnTop = (higher - currentTemp) / gap < 0.25
+            let currentOnBot = (currentTemp - lower) / gap < 0.25
+            
+            let greaterThanAverage = currentTemp > av
+            switch (greaterThanAverage, currentOnTop, currentOnBot) {
+            case (true, true, false):
+                degreesLimitLine.labelPosition = .rightBottom
+                averageLimitLine.labelPosition = .rightBottom
+            case (true, false, false):
+                degreesLimitLine.labelPosition = .rightTop
+                averageLimitLine.labelPosition = .rightBottom
+            case (false, false, false):
+                degreesLimitLine.labelPosition = .rightBottom
+                averageLimitLine.labelPosition = .rightTop
+            case (false, false, true):
+                degreesLimitLine.labelPosition = .rightTop
+                averageLimitLine.labelPosition = .rightTop
+            default: break
             }
         }
         
-        self.setChart(dataPoints: array, values: plotXData)
+        self.setChart(dataPoints: temps, values: times)
     }
 }
 
@@ -65,12 +66,15 @@ class TodayViewController: UIViewController, NCWidgetProviding {
 
         addBindings()
         setupPlot()
-        viewModel.loadPlotData()
+        viewModel.update()
     }
     
     func addBindings() {
-        viewModel.plotData
-            .bindTo(rx.plotData)
+        viewModel.observableWeather
+            .map({ $0.graph })
+            .bindNext { (graph) in
+                self.updateData(graph)
+            }
             .addDisposableTo(disposeBag)
     }
     
@@ -81,7 +85,7 @@ class TodayViewController: UIViewController, NCWidgetProviding {
     
     func widgetPerformUpdate(completionHandler: (@escaping (NCUpdateResult) -> Void)) {
 
-        viewModel.loadPlotData()
+        viewModel.update()
         completionHandler(NCUpdateResult.newData)
     }
     
@@ -192,7 +196,11 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         plotView.noDataText = "You need to provide data for the chart."
         
         let coldColor: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 0.8)
-        let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)//UIColor(red: 105/255.0, green: 241/255.0, blue: 175/255.0, alpha: 1.0)
+        let coldBorderColor: UIColor = UIColor(red: 120/255.0, green: 215/255.0, blue: 235/255.0, alpha: 1)
+        
+        let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)
+        let hotBorderColor: UIColor = UIColor(red: 177/255.0, green: 235/255.0, blue: 120/255.0, alpha: 1)
+        
         let averageValue = average(values: dataPoints)
         
         var dataEntries: [ChartDataEntry] = []
@@ -210,8 +218,9 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         dataSet.circleRadius = 4.0
         dataSet.setCircleColor(.white)
         
-        dataSet.highlightColor = .clear//UIColor(red: 244/255.0, green: 117/255.0, blue: 117/255.0, alpha: 1.0)
-        dataSet.setColor(.clear)//(averageValue > 0 ? hotColor : coldColor)
+        let borderColor = averageValue > 0 ? hotBorderColor : coldBorderColor
+        dataSet.highlightColor = borderColor
+        dataSet.setColor(borderColor)
         
         dataSet.fillColor = averageValue > 0 ? hotColor : coldColor
         dataSet.fillAlpha = 1.0

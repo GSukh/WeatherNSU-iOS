@@ -4,50 +4,40 @@ import RxCocoa
 
 import Charts
 
-extension Reactive where Base: ViewController {
-    var plotData: AnyObserver<[Double]?> {
-        return UIBindingObserver(UIElement: base) { vc, data in
-            vc.updateData(data)
-        }.asObserver()
-    }
-}
-
 extension ViewController {
-    func updateData(_ data: [Double]?) {
-        var array: [Double] = (data)!
-        var plotXData = Array<Double>();
+    func updateData(_ data: [TempPoint]?) {
+        guard let data = data else { return }
+
+        let temps = data.map({ $0.temp })
+        let times = data.map({ Double($0.timestamp) })
         
-        var av = 0.0
+        let av = temps.average
         
-        let now: Int = Int(NSDate().timeIntervalSince1970)
-        let oneDay: Int = 60 * 60 * 24
-        let step: Int = Int( Double(3 * oneDay) / Double(array.count) )
-        
-        for i in 0 ..< (array.count) {
-            plotXData.append(Double(now - 3 * oneDay + step * i))
-            av += array[i]
-        }
-        av /= Double(array.count)
         averageLimitLine.limit = av
         averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
         
-        if let currentTemp = array.last {
+        avDegreesLabel.text = String.init(format: "Средняя температура за 3 дня %0.2f °C", av)
+        
+        if let currentTemp = temps.last {
+            degreesLabel.text = String.init(format: "Температура около НГУ %0.2f °C", currentTemp)
             degreesLimitLine.limit = currentTemp
-//            degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
+            degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
 
-			if fabs(currentTemp - av) < 30 {
-				degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
-				averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-			}
-			else {
-				degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-				averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
-			}
+            let higher = temps.max()!
+            let lower = temps.min()!
+            let gap = higher - lower
+
+            if fabs(currentTemp - av) / gap < 0.25 {
+                degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+                averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+            }
+            else {
+                degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+                averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+            }
 		}
 		
-        array[0] = av > 0 ? 0.9 : -0.9
-		
-        self.setChart(dataPoints: array, values: plotXData)
+        self.setChart(dataPoints: temps, values: times)
     }
 }
 
@@ -76,34 +66,19 @@ class ViewController: UIViewController {
 		setupLinks()
 		
 		viewModel.update()
-        viewModel.loadPlotData()
 	}
 	
 	@IBAction func onUpdateButtonTap(_ sender: Any) {
 		viewModel.update()
-		viewModel.loadPlotData()
 	}
 	
 	func addBindings() {
-		viewModel.plotData
-            .bindTo(rx.plotData)
-			.addDisposableTo(disposeBag)
-		
-		viewModel.plotData
-			.map({ String.init(format: "Средняя температура за 3 дня %0.2f °C", self.average(values: $0!)) })
-			.bindTo(avDegreesLabel.rx.text)
-			.addDisposableTo(disposeBag)
-		
-		viewModel.degrees
-			.map({ "Температура около НГУ \($0!)" })
-			.bindTo(degreesLabel.rx.text)
-			.addDisposableTo(disposeBag)
-		
-		viewModel.degrees
-			.bindNext { (degreesString) in
-				self.degreesLimitLine.label = degreesString!
-			}
-			.addDisposableTo(disposeBag)
+        viewModel.observableWeather
+            .map({ $0.graph })
+            .bindNext { (graph) in
+                self.updateData(graph)
+            }
+            .addDisposableTo(disposeBag)
 	}
 	
 	func setupLinks() {
@@ -165,7 +140,7 @@ class ViewController: UIViewController {
         
 		
 		let yAxis: YAxis = plotView.leftAxis
-		yAxis.labelFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
+		yAxis.labelFont = UIFont.systemFont(ofSize: 12.0, weight: UIFontWeightLight)
 		yAxis.setLabelCount(12, force: false)
 		yAxis.labelTextColor = .black
 		yAxis.labelPosition = .insideChart
@@ -177,14 +152,14 @@ class ViewController: UIViewController {
         
         degreesLimitLine = ChartLimitLine.init(limit: 0, label: "")
         degreesLimitLine.labelPosition = .rightTop
-        degreesLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Bold", size: 14.0)!
+        degreesLimitLine.valueFont = UIFont.systemFont(ofSize: 14.0, weight: UIFontWeightBold)
         degreesLimitLine.lineColor = .black
         degreesLimitLine.lineWidth = 0.75
         yAxis.addLimitLine(degreesLimitLine)
         
         averageLimitLine = ChartLimitLine.init(limit: 0, label: "Среднее")
         averageLimitLine.labelPosition = .rightTop
-        averageLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 14.0)!
+        averageLimitLine.valueFont = UIFont.systemFont(ofSize: 14.0, weight: UIFontWeightLight)
         averageLimitLine.lineColor = .black
         averageLimitLine.lineWidth = 0.75
         yAxis.addLimitLine(averageLimitLine)
@@ -219,7 +194,7 @@ class ViewController: UIViewController {
             let interval = lastMidnight - i * oneDay
             let dateString = formatter.string(from: Date.init(timeIntervalSince1970: TimeInterval(interval)))
             let limitLine = ChartLimitLine.init(limit: Double(interval), label: dateString)
-            limitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
+            limitLine.valueFont = UIFont.systemFont(ofSize: 12.0, weight: UIFontWeightLight)
             limitLine.lineColor = .black
             limitLine.lineWidth = 0.5
             limitLine.labelPosition = .rightTop
@@ -244,8 +219,12 @@ class ViewController: UIViewController {
 		plotView.noDataText = "You need to provide data for the chart."
         
         let coldColor: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 0.8)
+        let coldBorderColor: UIColor = UIColor(red: 120/255.0, green: 215/255.0, blue: 235/255.0, alpha: 1)
+
         let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)
-        let averageValue = average(values: dataPoints)
+        let hotBorderColor: UIColor = UIColor(red: 177/255.0, green: 235/255.0, blue: 120/255.0, alpha: 1)
+
+        let averageValue = dataPoints.average
 		
 		var dataEntries: [ChartDataEntry] = []
 		
@@ -262,8 +241,9 @@ class ViewController: UIViewController {
 		dataSet.circleRadius = 4.0
 		dataSet.setCircleColor(.white)
 		
-		dataSet.highlightColor = .clear
-		dataSet.setColor(.clear)
+        let borderColor = averageValue > 0 ? hotBorderColor : coldBorderColor
+		dataSet.highlightColor = borderColor
+		dataSet.setColor(borderColor)
         
         dataSet.fillColor = averageValue > 0 ? hotColor : coldColor
 		dataSet.fillAlpha = 1.0
@@ -274,22 +254,11 @@ class ViewController: UIViewController {
 		dataSet.drawFilledEnabled = true
 
 		let chartData = LineChartData.init(dataSets: [dataSet])
-		chartData.setValueFont(UIFont.init(name: "HelveticaNeue-Light", size: 9.0))
+		chartData.setValueFont(UIFont.systemFont(ofSize: 9.0, weight: UIFontWeightLight))
 		chartData.setDrawValues(false)
 		plotView.data = chartData
         
         plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
 	}
-    
-    func average(values: Array<Double>) -> Double {
-        guard values.count != 0 else {
-            return 0
-        }
-        var av = 0.0;
-        for num in values {
-            av += num
-        }
-        return (av / Double(values.count) )
-    }
 }
 
