@@ -18,5 +18,5 @@ class Weather {
 
 class TempPoint {
     var timestamp: Int = 0
-    var temp: Double = 0.0
+    var temp: Double = -100500.0
 }

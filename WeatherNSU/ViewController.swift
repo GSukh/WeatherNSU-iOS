@@ -1,15 +1,15 @@
 import UIKit
-import RxSwift
-import RxCocoa
 
 import Charts
 
 extension ViewController {
     func updateData(_ data: [TempPoint]?) {
         guard let data = data else { return }
-
-        let temps = data.map({ $0.temp })
-        let times = data.map({ Double($0.timestamp) })
+        
+        let sortedData = data.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
+        
+        var temps = sortedData.map({ $0.temp })
+        var times = sortedData.map({ Double($0.timestamp) })
         
         let av = temps.average
         
@@ -36,7 +36,10 @@ extension ViewController {
                 averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
             }
 		}
-		
+        
+        temps.insert(av > 0 ? 0.5 : -0.5, at: 0)
+		times.insert(times[0]-1, at: 0)
+        
         self.setChart(dataPoints: temps, values: times)
     }
 }
@@ -47,48 +50,37 @@ class ViewController: UIViewController {
 	@IBOutlet weak var avDegreesLabel: UILabel!
 	
 	@IBOutlet weak var linksTextView: UITextView!
-	
-	@IBOutlet weak var updateButton: UIButton!
-	
+		
 	@IBOutlet weak var plotView: LineChartView!
     var degreesLimitLine: ChartLimitLine!
     var averageLimitLine: ChartLimitLine!
 	
-	let disposeBag = DisposeBag()
 	let viewModel = ViewModel()
 
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
-		
-		addBindings()
-		setupPlot()
-		setupLinks()
-		
-		viewModel.update()
+        setupPlot()
+        setupLinks()
 	}
-	
-	@IBAction func onUpdateButtonTap(_ sender: Any) {
-		viewModel.update()
-	}
-	
-	func addBindings() {
-        viewModel.observableWeather
-            .map({ $0.graph })
-            .bindNext { (graph) in
-                self.updateData(graph)
-            }
-            .addDisposableTo(disposeBag)
-	}
+    
+    override func viewDidAppear(_ animated: Bool) {
+
+        viewModel.update() { (weather) in
+            self.updateData(weather?.graph)
+        }
+    }
+
 	
 	func setupLinks() {
-		
-		let phrases = ["Прогноз Яндекс", "\nПрогноз Gismeteo", "\n\nДанные предоставленны сайтом ", "weather.nsu.ru"]
-		let links = ["https://yandex.ru/pogoda/novosibirsk", "https://www.gismeteo.ru/weather-novosibirsk-4690/", "", "http://weather.nsu.ru/"]
+        let color: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 1.0)
+
+        let phrases = ["Прогноз Яндекс", "\nПрогноз Gismeteo", "\n\nДанные предоставленны сайтом ", "weather.nsu.ru", "\nSupport & Production"]
+		let links = ["https://yandex.ru/pogoda/novosibirsk", "https://www.gismeteo.ru/weather-novosibirsk-4690/", "", "http://weather.nsu.ru/", "https://vk.com/gsukh"]
 		
 		let attrString = NSMutableAttributedString()
 		
-		for i in 0 ... 3 {
+		for i in 0..<phrases.count {
 			
 			let phrase = phrases[i]
 			let link = links[i]
@@ -98,15 +90,17 @@ class ViewController: UIViewController {
 			
 			if link == "" {
 				let linkAttributes = [
-					NSParagraphStyleAttributeName: paragraphStyle] as [String : Any]
+					NSParagraphStyleAttributeName: paragraphStyle,
+                    NSFontAttributeName: UIFont.systemFont(ofSize: 12)] as [String : Any]
 				let attrPhrase = NSAttributedString.init(string: phrase, attributes: linkAttributes)
 				attrString.append(attrPhrase)
 			}
 			else {
 				let linkAttributes = [
 					NSLinkAttributeName: NSURL(string: links[i])!,
-					NSForegroundColorAttributeName: UIColor.blue,
-					NSParagraphStyleAttributeName: paragraphStyle] as [String : Any]
+					NSForegroundColorAttributeName: color,
+					NSParagraphStyleAttributeName: paragraphStyle,
+                    NSFontAttributeName: UIFont.systemFont(ofSize: 12)] as [String : Any]
 				let attrPhrase = NSAttributedString.init(string: phrase, attributes: linkAttributes)
 				attrString.append(attrPhrase)
 			}
@@ -137,8 +131,8 @@ class ViewController: UIViewController {
         xAxis.drawGridLinesEnabled = false
         
         addXLimitLines()
+
         
-		
 		let yAxis: YAxis = plotView.leftAxis
 		yAxis.labelFont = UIFont.systemFont(ofSize: 12.0, weight: UIFontWeightLight)
 		yAxis.setLabelCount(12, force: false)

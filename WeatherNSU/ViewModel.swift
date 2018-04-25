@@ -1,6 +1,4 @@
 import Foundation
-import RxSwift
-import RxCocoa
 
 class ViewModel: NSObject {
 	
@@ -8,26 +6,36 @@ class ViewModel: NSObject {
 		static let URLShortWeather = "http://weather.nsu.ru/weather_brief.xml"
 		static let URLWeatherPlot = "http://weather.nsu.ru/weather.xml"
 	}
-	
-	let disposeBag = DisposeBag()
-	
-	fileprivate var publishWeather = PublishSubject<Weather>()
-    var observableWeather: Observable<Weather> {
-        return publishWeather.asObserver().observeOn(MainScheduler.instance)
-    }
     
     fileprivate var _weather = Weather()
     fileprivate var _tempPoint = TempPoint()
     fileprivate var _foundCharacters: String = ""
+    fileprivate var _lastUpdateDate: Date?
+    
+    typealias WeatherComplition = (Weather?) -> Void
+    fileprivate var _complitionBlock: WeatherComplition?
 	
-	func update() {
+    func update(_ complition: @escaping WeatherComplition) {
+
+        if let date = _lastUpdateDate, date.timeIntervalSinceNow > -60 {
+            return
+        }
+        _complitionBlock = { weather in
+            DispatchQueue.main.async { complition(weather) }
+        }
+        
+        _weather = Weather()
 		let url = URL(string: Constants.URLWeatherPlot)
-		
+        
 		let session = URLSession(configuration: URLSessionConfiguration.default)
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in
 			if data != nil {
                 self.parseWeather(data!)
 			}
+            else {
+                self._complitionBlock?(nil)
+                self._complitionBlock = nil
+            }
 		}
 		
 		dataTask.resume()
@@ -100,11 +108,9 @@ extension ViewModel: XMLParserDelegate {
     }
     
     public func parserDidEndDocument(_ parser: XMLParser) {
-//        print("\(_weather.average)\n\(_weather.current)");
-//        for temp in self._weather.graph {
-//            print("\(temp.timestamp):    \(temp.temp)");
-//        }
-        self.publishWeather.onNext(_weather)
+        _lastUpdateDate = Date()
+        self._complitionBlock?(_weather)
+        self._complitionBlock = nil
     }
 
 }

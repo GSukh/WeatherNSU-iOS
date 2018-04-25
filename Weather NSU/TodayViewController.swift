@@ -1,22 +1,20 @@
 import UIKit
 import NotificationCenter
 
-import RxSwift
-import RxCocoa
 import Charts
 
 extension TodayViewController {
     func updateData(_ data: [TempPoint]?) {
         guard let data = data else { return }
-        
-        let temps = data.map({ $0.temp })
-        let times = data.map({ Double($0.timestamp) })
+        let sortedData = data.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
+
+        let temps = sortedData.flatMap({ $0.temp })
+        let times = sortedData.flatMap({ Double($0.timestamp) })
         
         let av = temps.average
         
         averageLimitLine.limit = av
         averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
-        
         
         if let currentTemp = temps.last {
             degreesLimitLine.limit = currentTemp
@@ -47,7 +45,7 @@ extension TodayViewController {
             }
         }
         
-        self.setChart(dataPoints: temps, values: times)
+        self.setChart(temps: temps, timestamps: times)
     }
 }
 
@@ -57,25 +55,15 @@ class TodayViewController: UIViewController, NCWidgetProviding {
     var degreesLimitLine: ChartLimitLine!
     var averageLimitLine: ChartLimitLine!
     
-    let disposeBag = DisposeBag()
     let viewModel = ViewModel()
 
-    
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        addBindings()
         setupPlot()
-        viewModel.update()
     }
     
-    func addBindings() {
-        viewModel.observableWeather
-            .map({ $0.graph })
-            .bindNext { (graph) in
-                self.updateData(graph)
-            }
-            .addDisposableTo(disposeBag)
+    override func viewDidAppear(_ animated: Bool) {
+
     }
     
     override func didReceiveMemoryWarning() {
@@ -85,8 +73,14 @@ class TodayViewController: UIViewController, NCWidgetProviding {
     
     func widgetPerformUpdate(completionHandler: (@escaping (NCUpdateResult) -> Void)) {
 
-        viewModel.update()
-        completionHandler(NCUpdateResult.newData)
+        print(self.plotView.frame)
+        viewModel.update() { [weak self] (weather) in
+            if let weather = weather {
+                self?.updateData(weather.graph)
+                completionHandler(NCUpdateResult.newData)
+            }
+            completionHandler(NCUpdateResult.noData)
+        }
     }
     
     
@@ -192,7 +186,7 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         }
     }
     
-    func setChart(dataPoints: [Double], values: [Double]) {
+    func setChart(temps: [Double], timestamps: [Double]) {
         plotView.noDataText = "You need to provide data for the chart."
         
         let coldColor: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 0.8)
@@ -201,12 +195,12 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)
         let hotBorderColor: UIColor = UIColor(red: 177/255.0, green: 235/255.0, blue: 120/255.0, alpha: 1)
         
-        let averageValue = average(values: dataPoints)
+        let averageValue = temps.average
         
         var dataEntries: [ChartDataEntry] = []
         
-        for i in 0..<dataPoints.count {
-            let dataEntry = ChartDataEntry(x: values[i], y: dataPoints[i]) //(value: values[i], xIndex: i)
+        for i in 0..<temps.count {
+            let dataEntry = ChartDataEntry(x: timestamps[i], y: temps[i])
             dataEntries.append(dataEntry)
         }
         
@@ -235,19 +229,11 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         chartData.setDrawValues(false)
         plotView.data = chartData
         
+        let xAxis = plotView.xAxis
+        xAxis.axisMinimum = timestamps.min()!
+        xAxis.axisMaximum = timestamps.max()!
+
         plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
     }
-    
-    func average(values: Array<Double>) -> Double {
-        guard values.count != 0 else {
-            return 0
-        }
-        var av = 0.0;
-        for num in values {
-            av += num
-        }
-        return (av / Double(values.count) )
-    }
-
     
 }
