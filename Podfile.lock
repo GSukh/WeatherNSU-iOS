@@ -2,13 +2,16 @@ PODS:
   - Charts (3.0.1):
     - Charts/Core (= 3.0.1)
   - Charts/Core (3.0.1)
+  - Framezilla (2.9.1)
 
 DEPENDENCIES:
   - Charts
+  - Framezilla
 
 SPEC CHECKSUMS:
   Charts: 0e84f4418e87dad6a9edde221fba37ebb51d3ba7
+  Framezilla: 47d52b1986bddf580da55ba77189ef654ebdc731
 
-PODFILE CHECKSUM: 746e6e6095227fd325568cb16c2864f2eb3e1388
+PODFILE CHECKSUM: 1f8e7260efeaac8d26b733fcb565d550bf631970
 
 COCOAPODS: 1.4.0

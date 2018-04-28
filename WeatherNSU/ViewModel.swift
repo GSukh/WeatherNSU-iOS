@@ -1,11 +1,20 @@
 import Foundation
 
+enum HistoryType {
+    case three
+    case ten
+    case month
+    
+    var path: String {
+        switch self {
+        case .three: return "http://weather.nsu.ru/weather.xml"
+        case .ten: return "http://weather.nsu.ru/weather.xml?std=ten"
+        case .month: return "http://weather.nsu.ru/weather.xml?std=month"
+        }
+    }
+}
+
 class ViewModel: NSObject {
-	
-	private struct Constants {
-		static let URLShortWeather = "http://weather.nsu.ru/weather_brief.xml"
-		static let URLWeatherPlot = "http://weather.nsu.ru/weather.xml"
-	}
     
     fileprivate var _weather = Weather()
     fileprivate var _tempPoint = TempPoint()
@@ -15,17 +24,17 @@ class ViewModel: NSObject {
     typealias WeatherComplition = (Weather?) -> Void
     fileprivate var _complitionBlock: WeatherComplition?
 	
-    func update(_ complition: @escaping WeatherComplition) {
+    func update(_ historyType: HistoryType, _ complition: @escaping WeatherComplition) {
 
-        if let date = _lastUpdateDate, date.timeIntervalSinceNow > -60 {
-            return
-        }
+//        if let date = _lastUpdateDate, date.timeIntervalSinceNow > -60 {
+//            return
+//        }
         _complitionBlock = { weather in
             DispatchQueue.main.async { complition(weather) }
         }
         
         _weather = Weather()
-		let url = URL(string: Constants.URLWeatherPlot)
+		let url = URL(string: historyType.path)
         
 		let session = URLSession(configuration: URLSessionConfiguration.default)
 		let dataTask = session.dataTask(with: url!) { (data, response, error) in

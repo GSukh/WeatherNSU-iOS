@@ -4,6 +4,7 @@
 def corePods
 
 pod 'Charts'
+pod 'Framezilla'
 
 end
 

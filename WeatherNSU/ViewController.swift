@@ -2,11 +2,35 @@ import UIKit
 
 import Charts
 
+extension HistoryType {
+    var dateFormat: String {
+        switch self {
+        case .three:        return "dMMMM"
+        case .ten, .month:  return "d"
+        }
+    }
+    
+    var days: Int {
+        switch self {
+        case .three:        return 3
+        case .ten:          return 20
+        case .month:        return 30
+        }
+    }
+    
+    var enable6hLines: Bool {
+        switch self {
+        case .three, .ten:  return true
+        case .month:  return false
+        }
+    }
+}
+
 extension ViewController {
-    func updateData(_ data: [TempPoint]?) {
-        guard let data = data else { return }
+    func updateWeather(_ weather: Weather, _ type: HistoryType) {
         
-        let sortedData = data.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
+        let sortedData = weather.graph.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
+        guard !sortedData.isEmpty else { return }
         
         var temps = sortedData.map({ $0.temp })
         var times = sortedData.map({ Double($0.timestamp) })
@@ -18,29 +42,28 @@ extension ViewController {
         
         avDegreesLabel.text = String.init(format: "Средняя температура за 3 дня %0.2f °C", av)
         
-        if let currentTemp = temps.last {
-            degreesLabel.text = String.init(format: "Температура около НГУ %0.2f °C", currentTemp)
-            degreesLimitLine.limit = currentTemp
-            degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
-
-            let higher = temps.max()!
-            let lower = temps.min()!
-            let gap = higher - lower
-
-            if fabs(currentTemp - av) / gap < 0.25 {
-                degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
-                averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-            }
-            else {
-                degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
-                averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
-            }
-		}
+        let currentTemp = weather.current
+        degreesLabel.text = String.init(format: "Температура около НГУ %0.2f °C", currentTemp)
+        degreesLimitLine.limit = currentTemp
+        degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
+        
+        let higher = temps.max()!
+        let lower = temps.min()!
+        let gap = higher - lower
+        
+        if fabs(currentTemp - av) / gap < 0.25 {
+            degreesLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+            averageLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+        }
+        else {
+            degreesLimitLine.labelPosition = currentTemp > av ? .rightBottom : .rightTop
+            averageLimitLine.labelPosition = currentTemp > av ? .rightTop : .rightBottom
+        }
         
         temps.insert(av > 0 ? 0.5 : -0.5, at: 0)
-		times.insert(times[0]-1, at: 0)
+        times.insert(times[0]-1, at: 0)
         
-        self.setChart(dataPoints: temps, values: times)
+        self.setChart(type, temps: temps, times: times)
     }
 }
 
@@ -51,12 +74,14 @@ class ViewController: UIViewController {
 	
 	@IBOutlet weak var linksTextView: UITextView!
 		
-	@IBOutlet weak var plotView: LineChartView!
+    @IBOutlet weak var dynamicTypeSwitcher: UISegmentedControl!
+    @IBOutlet weak var plotView: LineChartView!
+    
     var degreesLimitLine: ChartLimitLine!
     var averageLimitLine: ChartLimitLine!
-	
+    
+//    var HistoryType = HistoryType.three
 	let viewModel = ViewModel()
-
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -66,12 +91,26 @@ class ViewController: UIViewController {
     
     override func viewDidAppear(_ animated: Bool) {
 
-        viewModel.update() { (weather) in
-            self.updateData(weather?.graph)
+        viewModel.update(.three) { (weather) in
+            guard let weather = weather else { return }
+            self.updateWeather(weather, .three)
         }
     }
 
-	
+    @IBAction func actionDynamicTypeChanged() {
+        var dynamicType: HistoryType = .three
+        switch dynamicTypeSwitcher.selectedSegmentIndex {
+        case 1: dynamicType = .ten
+        case 2: dynamicType = .month
+        default: break
+        }
+        
+        viewModel.update(dynamicType) { (weather) in
+            guard let weather = weather else { return }
+            self.updateWeather(weather, dynamicType)
+        }
+    }
+    
 	func setupLinks() {
         let color: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 1.0)
 
@@ -108,7 +147,7 @@ class ViewController: UIViewController {
 		self.linksTextView.attributedText = attrString
 	}
 	
-	func setupPlot() {
+    func setupPlot() {
 		plotView.setViewPortOffsets(left: 0.0, top: 0.0, right: 0.0, bottom: 0.0)
 		
 		
@@ -130,7 +169,7 @@ class ViewController: UIViewController {
         xAxis.labelPosition = .top
         xAxis.drawGridLinesEnabled = false
         
-        addXLimitLines()
+        addXLimitLines(.three)
 
         
 		let yAxis: YAxis = plotView.leftAxis
@@ -164,7 +203,7 @@ class ViewController: UIViewController {
 		plotView.animate(xAxisDuration: 1.0, yAxisDuration: 1.0)
 	}
     
-    func addXLimitLines() {
+    func addXLimitLines(_ type: HistoryType) {
 		let xAxis = plotView.xAxis
         xAxis.removeAllLimitLines()
         
@@ -182,9 +221,11 @@ class ViewController: UIViewController {
         let oneDay: Int = 60 * 60 * 24
         
         let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("dMMMM")
+        formatter.setLocalizedDateFormatFromTemplate(type.dateFormat)
         
-        for i in 0 ... 2 {
+        let days = type.days
+        
+        for i in 0 ... days {
             let interval = lastMidnight - i * oneDay
             let dateString = formatter.string(from: Date.init(timeIntervalSince1970: TimeInterval(interval)))
             let limitLine = ChartLimitLine.init(limit: Double(interval), label: dateString)
@@ -196,9 +237,11 @@ class ViewController: UIViewController {
             xAxis.addLimitLine(limitLine)
         }
         
-        let startInterval = lastMidnight - 2 * oneDay
+        guard type.enable6hLines else { return }
+        
+        let startInterval = lastMidnight - days * oneDay
         let step = 60 * 60 * 6
-        for i in 1 ... 12 {
+        for i in 1 ... 4 * days {
             let interval = startInterval + i * step
 
             let limitLine = ChartLimitLine.init(limit: Double(interval), label: "")
@@ -209,21 +252,22 @@ class ViewController: UIViewController {
         }
     }
 	
-	func setChart(dataPoints: [Double], values: [Double]) {
+    func setChart(_ type: HistoryType, temps: [Double], times: [Double]) {
 		plotView.noDataText = "You need to provide data for the chart."
+        
+        addXLimitLines(type)
         
         let coldColor: UIColor = UIColor(red: 140/255.0, green: 235/255.0, blue: 255/255.0, alpha: 0.8)
         let coldBorderColor: UIColor = UIColor(red: 120/255.0, green: 215/255.0, blue: 235/255.0, alpha: 1)
 
         let hotColor: UIColor = UIColor(red: 197/255.0, green: 255/255.0, blue: 140/255.0, alpha: 0.8)
         let hotBorderColor: UIColor = UIColor(red: 177/255.0, green: 235/255.0, blue: 120/255.0, alpha: 1)
-
-        let averageValue = dataPoints.average
-		
+        
+        let averageValue = temps.average
 		var dataEntries: [ChartDataEntry] = []
 		
-		for i in 0..<dataPoints.count {
-			let dataEntry = ChartDataEntry(x: values[i], y: dataPoints[i])
+		for i in 0..<temps.count {
+			let dataEntry = ChartDataEntry(x: times[i], y: temps[i])
 			dataEntries.append(dataEntry)
 		}
 		

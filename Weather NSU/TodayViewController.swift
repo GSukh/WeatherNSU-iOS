@@ -74,7 +74,7 @@ class TodayViewController: UIViewController, NCWidgetProviding {
     func widgetPerformUpdate(completionHandler: (@escaping (NCUpdateResult) -> Void)) {
 
         print(self.plotView.frame)
-        viewModel.update() { [weak self] (weather) in
+        viewModel.update(.three) { [weak self] (weather) in
             if let weather = weather {
                 self?.updateData(weather.graph)
                 completionHandler(NCUpdateResult.newData)
