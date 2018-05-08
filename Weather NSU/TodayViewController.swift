@@ -4,62 +4,48 @@ import NotificationCenter
 import Charts
 
 extension TodayViewController {
-    func updateData(_ data: [TempPoint]?) {
-        guard let data = data else { return }
-        let sortedData = data.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
-
-        let temps = sortedData.flatMap({ $0.temp })
-        let times = sortedData.flatMap({ Double($0.timestamp) })
+    func updateWeather(_ weather: Weather) {
         
-        let av = temps.average
+        let sortedData = weather.graph.sorted(by: { $0.0.timestamp < $0.1.timestamp }).filter({ $0.temp > -273.0 })
+        guard !sortedData.isEmpty else { return }
         
-        averageLimitLine.limit = av
-        averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
+        let temps = sortedData.map({ $0.temp })
+        let times = sortedData.map({ Double($0.timestamp) })
         
-        if let currentTemp = temps.last {
-            degreesLimitLine.limit = currentTemp
-            degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
-            
-            let higher = temps.max()!
-            let lower = temps.min()!
-            let gap = higher - lower
-            
-            let currentOnTop = (higher - currentTemp) / gap < 0.25
-            let currentOnBot = (currentTemp - lower) / gap < 0.25
-            
-            let greaterThanAverage = currentTemp > av
-            switch (greaterThanAverage, currentOnTop, currentOnBot) {
-            case (true, true, false):
-                degreesLimitLine.labelPosition = .rightBottom
-                averageLimitLine.labelPosition = .rightBottom
-            case (true, false, false):
-                degreesLimitLine.labelPosition = .rightTop
-                averageLimitLine.labelPosition = .rightBottom
-            case (false, false, false):
-                degreesLimitLine.labelPosition = .rightBottom
-                averageLimitLine.labelPosition = .rightTop
-            case (false, false, true):
-                degreesLimitLine.labelPosition = .rightTop
-                averageLimitLine.labelPosition = .rightTop
-            default: break
-            }
-        }
+        let average = temps.average
+        let currentTemp = weather.current
+        self.setupLabel(current: currentTemp, average: average)
         
         self.setChart(temps: temps, timestamps: times)
+    }
+    
+    func setupLabel(current: Double, average: Double) {
+        
+        let attrString = NSMutableAttributedString()
+        
+        let tempString = String.init(format: "%0.1f °C", current) + "\n"
+        let tempAttributes = [NSFontAttributeName: UIFont.init(name: "HelveticaNeue-Bold", size: 24.0)!] as [String : Any]
+        attrString.append(NSAttributedString.init(string: tempString, attributes: tempAttributes))
+
+        let averageString = String.init(format: "В среднем %0.1f °C", average)
+        let averageAttributes = [NSFontAttributeName: UIFont.init(name: "HelveticaNeue-Light", size: 14.0)!] as [String : Any]
+        attrString.append(NSAttributedString.init(string: averageString, attributes: averageAttributes))
+        
+        viewLabel.attributedText = attrString
     }
 }
 
 class TodayViewController: UIViewController, NCWidgetProviding {
         
     @IBOutlet weak var plotView: LineChartView!
-    var degreesLimitLine: ChartLimitLine!
-    var averageLimitLine: ChartLimitLine!
     
+    @IBOutlet weak var viewLabel: UILabel!
     let viewModel = ViewModel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupPlot()
+        self.view.bringSubview(toFront: viewLabel)
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -76,7 +62,7 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         print(self.plotView.frame)
         viewModel.update(.three) { [weak self] (weather) in
             if let weather = weather {
-                self?.updateData(weather.graph)
+                self?.updateWeather(weather)
                 completionHandler(NCUpdateResult.newData)
             }
             completionHandler(NCUpdateResult.noData)
@@ -120,20 +106,6 @@ class TodayViewController: UIViewController, NCWidgetProviding {
         yAxis.gridLineDashPhase = CGFloat(1)
         yAxis.gridLineDashLengths = [1, 27, 1000]
         yAxis.axisLineColor = .black
-        
-        degreesLimitLine = ChartLimitLine.init(limit: 0, label: "")
-        degreesLimitLine.labelPosition = .rightTop
-        degreesLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Bold", size: 12.0)!
-        degreesLimitLine.lineColor = .black
-        degreesLimitLine.lineWidth = 0.5
-        yAxis.addLimitLine(degreesLimitLine)
-        
-        averageLimitLine = ChartLimitLine.init(limit: 0, label: "Среднее")
-        averageLimitLine.labelPosition = .rightTop
-        averageLimitLine.valueFont = UIFont.init(name: "HelveticaNeue-Light", size: 12.0)!
-        averageLimitLine.lineColor = .black
-        averageLimitLine.lineWidth = 0.5
-        yAxis.addLimitLine(averageLimitLine)
         
         plotView.rightAxis.enabled = false
         plotView.legend.enabled = false
