@@ -1,6 +1,7 @@
 import UIKit
 
 import Charts
+import Framezilla
 
 extension HistoryType {
     var dateFormat: String {
@@ -18,10 +19,29 @@ extension HistoryType {
         }
     }
     
-    var enable6hLines: Bool {
+    var lineInterval: Int {
+        let day = 24 * 60 * 60
         switch self {
-        case .three, .ten:  return true
-        case .month:  return false
+        case .three:  return day
+        case .ten:    return 2 * day
+        case .month:  return 7 * day
+        }
+    }
+    
+    var sublineInterval: Int? {
+        let hour = 60 * 60
+        switch self {
+        case .three:  return 6 * hour
+        case .ten:    return 12 * hour
+        case .month:  return 24 * hour
+        }
+    }
+    
+    var averageTitle: String {
+        switch self {
+        case .three:    return "Средняя температура за 3 дня %0.1f °C"
+        case .ten:      return "Средняя температура за 10 дней %0.1f °C"
+        case .month:    return "Средняя температура за месяц %0.1f °C"
         }
     }
 }
@@ -38,14 +58,14 @@ extension ViewController {
         let av = temps.average
         
         averageLimitLine.limit = av
-        averageLimitLine.label = String.init(format: "В среднем %0.2f °C", av)
+        averageLimitLine.label = String.init(format: "В среднем %0.1f °C", av)
         
-        avDegreesLabel.text = String.init(format: "Средняя температура за 3 дня %0.2f °C", av)
+        avDegreesLabel.text = String.init(format: type.averageTitle, av)
         
         let currentTemp = weather.current
-        degreesLabel.text = String.init(format: "Температура около НГУ %0.2f °C", currentTemp)
+        degreesLabel.text = String.init(format: "Температура около НГУ %0.1f °C", currentTemp)
         degreesLimitLine.limit = currentTemp
-        degreesLimitLine.label = String.init(format: "%0.2f °C", currentTemp)
+        degreesLimitLine.label = String.init(format: "%0.1f °C", currentTemp)
         
         let higher = temps.max()!
         let lower = temps.min()!
@@ -69,24 +89,28 @@ extension ViewController {
 
 class ViewController: UIViewController {
 
-	@IBOutlet weak var degreesLabel: UILabel!
-	@IBOutlet weak var avDegreesLabel: UILabel!
+	lazy var degreesLabel: UILabel = self.getTempLabel()
+	lazy var avDegreesLabel: UILabel = self.getAverageTempLabel()
 	
-	@IBOutlet weak var linksTextView: UITextView!
+	lazy var linksTextView: UITextView = UITextView()
 		
-    @IBOutlet weak var dynamicTypeSwitcher: UISegmentedControl!
-    @IBOutlet weak var plotView: LineChartView!
+    lazy var historyTypeSwitcher: UISegmentedControl = self.getSwitcherView()
+    lazy var plotView: LineChartView = LineChartView()
+    
+    lazy var labelsContainerView: UIView = UIView()
+    lazy var plotContainerView: UIView = UIView()
     
     var degreesLimitLine: ChartLimitLine!
     var averageLimitLine: ChartLimitLine!
     
-//    var HistoryType = HistoryType.three
 	let viewModel = ViewModel()
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
+        setupUI()
         setupPlot()
         setupLinks()
+        layoutViews()
 	}
     
     override func viewDidAppear(_ animated: Bool) {
@@ -96,10 +120,108 @@ class ViewController: UIViewController {
             self.updateWeather(weather, .three)
         }
     }
+    
+    override func viewDidLayoutSubviews() {
+        layoutViews()
+        super .viewDidLayoutSubviews()
+    }
+    
+    func layoutViews() {
+        if self.view.frame.height > self.view.frame.width {
+            layoutViewsPortrait()
+        }
+        else {
+            layoutViewsLandscape()
+        }
+    }
+    
+    func layoutViewsPortrait() {
+        labelsContainerView.configureFrame { (maker) in
+            maker.top(inset: 20)
+            maker.left().right()
+            maker.height(150)
+        }
+        
+        degreesLabel.configureFrame { (maker) in
+            maker.left().right()
+            maker.bottom(to: labelsContainerView.nui_centerY)
+            maker.height(20)
+        }
+        
+        avDegreesLabel.configureFrame { (maker) in
+            maker.top(to: labelsContainerView.nui_centerY)
+            maker.left().right()
+            maker.height(20)
+        }
+        
+        linksTextView.configureFrame { (maker) in
+            maker.bottom()
+            maker.left(inset: 30).right(inset: 30)
+            maker.height(90)
+        }
+        
+        plotContainerView.configureFrame { (maker) in
+            maker.top(to: avDegreesLabel.nui_bottom, inset: 50)
+            maker.bottom(to: linksTextView.nui_top, inset: 30)
+            maker.left().right()
+        }
+        
+        historyTypeSwitcher.configureFrame { (maker) in
+            maker.centerX()
+            maker.bottom()
+            maker.heightToFit()
+        }
+        
+        plotView.configureFrame { (maker) in
+            maker.top().left().right()
+            maker.bottom(to: historyTypeSwitcher.nui_top, inset: 5)
+        }
+    }
+    
+    func layoutViewsLandscape() {
+        labelsContainerView.configureFrame { (maker) in
+            maker.top(inset: 20).left()
+            maker.height(150).width(280)
+        }
+        
+        degreesLabel.configureFrame { (maker) in
+            maker.left().right()
+            maker.bottom(to: labelsContainerView.nui_centerY)
+            maker.height(20)
+        }
+        
+        avDegreesLabel.configureFrame { (maker) in
+            maker.top(to: labelsContainerView.nui_centerY)
+            maker.left().right()
+            maker.height(20)
+        }
+        
+        linksTextView.configureFrame { (maker) in
+            maker.bottom().left()
+            maker.width(280)
+            maker.heightToFit()
+        }
+        
+        plotContainerView.configureFrame { (maker) in
+            maker.top(inset: 20).bottom(inset: 5)
+            maker.left(inset: 280).right()
+        }
+        
+        historyTypeSwitcher.configureFrame { (maker) in
+            maker.centerX()
+            maker.bottom()
+            maker.heightToFit()
+        }
+        
+        plotView.configureFrame { (maker) in
+            maker.top().left().right()
+            maker.bottom(to: historyTypeSwitcher.nui_top, inset: 5)
+        }
+    }
 
-    @IBAction func actionDynamicTypeChanged() {
+    func actionDynamicTypeChanged() {
         var dynamicType: HistoryType = .three
-        switch dynamicTypeSwitcher.selectedSegmentIndex {
+        switch historyTypeSwitcher.selectedSegmentIndex {
         case 1: dynamicType = .ten
         case 2: dynamicType = .month
         default: break
@@ -109,6 +231,19 @@ class ViewController: UIViewController {
             guard let weather = weather else { return }
             self.updateWeather(weather, dynamicType)
         }
+    }
+    
+    func setupUI() {
+        self.view.backgroundColor = .white
+        
+        self.view.addSubview(plotContainerView)
+        plotContainerView.addSubview(plotView)
+        plotContainerView.addSubview(historyTypeSwitcher)
+        
+        self.view.addSubview(labelsContainerView)
+        labelsContainerView.addSubview(degreesLabel)
+        labelsContainerView.addSubview(avDegreesLabel)
+        self.view.addSubview(linksTextView)
     }
     
 	func setupLinks() {
@@ -224,9 +359,11 @@ class ViewController: UIViewController {
         formatter.setLocalizedDateFormatFromTemplate(type.dateFormat)
         
         let days = type.days
+        let lineStep = type.lineInterval
+        let lineTicks = Int(days * oneDay / lineStep)
         
-        for i in 0 ... days {
-            let interval = lastMidnight - i * oneDay
+        for i in 0 ... lineTicks {
+            let interval = lastMidnight - i * lineStep
             let dateString = formatter.string(from: Date.init(timeIntervalSince1970: TimeInterval(interval)))
             let limitLine = ChartLimitLine.init(limit: Double(interval), label: dateString)
             limitLine.valueFont = UIFont.systemFont(ofSize: 12.0, weight: UIFontWeightLight)
@@ -237,19 +374,22 @@ class ViewController: UIViewController {
             xAxis.addLimitLine(limitLine)
         }
         
-        guard type.enable6hLines else { return }
-        
-        let startInterval = lastMidnight - days * oneDay
-        let step = 60 * 60 * 6
-        for i in 1 ... 4 * days {
-            let interval = startInterval + i * step
-
-            let limitLine = ChartLimitLine.init(limit: Double(interval), label: "")
-            limitLine.lineColor = .darkGray
-            limitLine.lineWidth = 0.25
+        if let step = type.sublineInterval {
+            let startInterval = lastMidnight - days * oneDay
+            let ticks = Int((days + 1) * oneDay / step)
             
-            xAxis.addLimitLine(limitLine)
+            for i in 0 ... ticks {
+                let interval = startInterval + i * step
+                
+                let limitLine = ChartLimitLine.init(limit: Double(interval), label: "")
+                limitLine.lineColor = .darkGray
+                limitLine.lineWidth = 0.25
+                
+                xAxis.addLimitLine(limitLine)
+            }
         }
+        
+
     }
 	
     func setChart(_ type: HistoryType, temps: [Double], times: [Double]) {
@@ -300,3 +440,36 @@ class ViewController: UIViewController {
 	}
 }
 
+fileprivate extension ViewController {
+    func getSwitcherView() -> UISegmentedControl {
+        let segments = ["3 дня", "10 дней", "месяц"]
+        let view = UISegmentedControl.init(items: segments)
+        view.selectedSegmentIndex = 0
+        
+        view.addTarget(self, action: #selector(actionDynamicTypeChanged), for: .valueChanged)
+
+        return view
+    }
+    
+    func getTempLabel() -> UILabel {
+        let view = UILabel()
+        
+        view.font = UIFont.systemFont(ofSize: 18, weight: UIFontWeightRegular)
+        view.textColor = .black
+        view.numberOfLines = 2
+        view.textAlignment = .center
+        
+        return view
+    }
+    
+    func getAverageTempLabel() -> UILabel {
+        let view = UILabel()
+        
+        view.font = UIFont.systemFont(ofSize: 14, weight: UIFontWeightThin)
+        view.textColor = .black
+        view.numberOfLines = 2
+        view.textAlignment = .center
+        
+        return view
+    }
+}
